@@ -1,66 +1,83 @@
 const router = require('express').Router()
-const md = require('./accounts-middleware')
-const Account = require('./accounts-model')
+
+const {
+  getAll,
+  getById,
+  create,
+  updateById,
+  deleteById
+} = require('./accounts-model');
+
+const {
+  checkAccountPayload,
+  checkAccountId,
+  checkAccountNameUnique
+} = require('./accounts-middleware');
+
+const postMW = [
+  checkAccountPayload,
+  checkAccountNameUnique
+]
+
+const putMW = [
+  checkAccountId,
+  checkAccountPayload,
+]
 
 router.get('/', async (req, res, next) => {
-  // DO YOUR MAGIC
   try {
-    const accounts = await Account.getAll()
-    res.json(accounts)
-  } catch(err) {
-    next(err)
+    const accounts = await getAll(req.query);
+    res.json(accounts);
+  } catch (error) {
+    next({ status: 500, message: `GET to / failed...` });
   }
-})
-
-router.get('/:id', md.checkAccountId, async (req, res, next) => {
-  // DO YOUR MAGIC
- res.json(req.account)
-})
-
-router.post(
-  '/', 
-  md.checkAccountPayload, 
-  md.checkAccountNameUnique, 
-  async (req, res, next) => {
-  // DO YOUR MAGIC
-    try {
-      const newAccount = await Account.create({
-        name: req.body.name.trim(),
-        budget: req.body.budget,
-      })
-      res.status(201).json('post acccount')
-    } catch(err) {
-    next(err)
-    }
-})
-
-router.put(
-  '/:id', 
-  md.checkAccountId,
-  md.checkAccountPayload,  
-  async (req, res, next) => {
-    const updated = await Account.updateById(req.params.id, req.body)
-    res.json(updated)
-    try {
-      res.json('update acccount')
-    } catch(err) {
-      next(err)
-    }
 });
 
-router.delete('/:id', md.checkAccountId, async (req, res, next) => {
+router.get('/:id', [checkAccountId], async (req, res, next) => {
+  const { id } = req.params;
   try {
-    await Account.deleteById(req.params.id)
-    res.json(req.account)
-  } catch(err) {
-    next(err)
+    const account = await getById(id);
+    res.json(account);
+  } catch (error) {
+    next({ status: 500, message: `GET to /${id} failed...` });
+  }
+});
+
+router.post('/', postMW, async (req, res, next) => {
+  try {
+    const id = await create(req.body);
+    const newAccount = await getById(id);
+    res.status(201).json(newAccount);
+  } catch (error) {
+    next(error);
   }
 })
 
-router.use((err, req, res, next) => { // eslint-disable-line
-  res.status(err.status || 500).json({
-    message: err.message,
-  })
+router.put('/:id', putMW, async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    await updateById(id, req.body);
+    const updated = await getById(id);
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id', [checkAccountId], async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    await deleteById(id);
+    res.json(req.account);
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.use((error, req, res, next) => { // eslint-disable-line
+  console.error(error);
+  const { status, message } = error;
+  res.status(status).json({ message });
 })
 
 module.exports = router;
